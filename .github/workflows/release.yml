@@ -16,6 +16,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Set version and filename
         id: version
         run: |
@@ -51,17 +56,12 @@ jobs:
           echo "=== manifest.toml ==="
           cat manifest.toml
 
-      - name: Build .xdc file
+      - name: Build minified .xdc file
         run: |
           XDC_NAME="${{ steps.version.outputs.XDC_NAME }}"
 
-          zip -r "${XDC_NAME}" . \
-            -x ".git/*" \
-            -x ".github/*" \
-            -x "temp/*" \
-            -x "git-assets/*" \
-            -x "README.md" \
-            -x "*.xdc"          # avoid packaging a previous build
+          chmod +x ./git-assets/make-xdc.sh
+          ./git-assets/make-xdc.sh "${XDC_NAME}" --minify --verbose
 
           echo "=== Contents of ${XDC_NAME} ==="
           unzip -l "${XDC_NAME}"

@@ -27,7 +27,9 @@
 
 The app is plain HTML/CSS/JS with no build step. Open `index.html` directly in a browser to develop — outside Delta Chat a built-in `webxdc` fallback kicks in, so the app works with `localStorage` persistence and uses a `BroadcastChannel` to sync between tabs. Open the app in several browser tabs to simulate a multiplayer game locally; sharing simply becomes a file download, and a "Reset room" button clears the mock room.
 
-To test real chat integration, package the folder as a `.zip` file, rename it to `.xdc` and share it in a DeltaChat chat.
+To test real chat integration, you have two options:
+1. Run /git-assets/make-xdc.sh and it will create /temp/app.xdc
+2. Package the app directory into a `.zip` archive, rename the extension to `.xdc`, and send it into any supported messenger(like DeltaChat).
 
 ### Adding a language
 
