@@ -21,11 +21,8 @@
             <button id="btn-toggle-theme" class="btn-theme-toggle" data-i18n-title="theme_toggle">
               <span id="theme-icon">🌙</span>
             </button>
-            <!-- Language Selector -->
-            <select id="select-lang" class="select-lang" data-i18n-title="language">
-              <option value="fa" selected>FA</option>
-              <option value="en">EN</option>
-            </select>
+            <!-- Language Selector (options are generated from i18n.js) -->
+            <select id="select-lang" class="select-lang" data-i18n-title="language"></select>
           </div>
         </div>
       </header>
@@ -72,12 +69,16 @@
                   <label id="label-rounds" data-i18n="rounds_label">rounds_label</label>
                   <div class="flex-row items-center gap-2">
                     <span class="hint-text" id="rounds-hint" data-i18n="rounds_hint">rounds_hint</span>
-                    <input type="number" id="setting-rounds" class="input-number text-center" value="0" min="0" max="20">
+                    <input type="text" id="setting-rounds" class="input-number text-center" value="0" min="0" max="20" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
                   </div>
                 </div>
                 <div class="setting-item">
                   <label id="label-time" data-i18n="time_label">time_label</label>
-                  <input type="number" id="setting-time" class="input-number text-center" value="60" min="5" max="600">
+                  <input type="text" id="setting-time" class="input-number text-center" value="60" min="5" max="600" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
+                </div>
+                <div class="setting-item">
+                  <label id="label-subject-time" data-i18n="subject_time_label">subject_time_label</label>
+                  <input type="text" id="setting-subject-time" class="input-number text-center" value="20" min="5" max="600" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
                 </div>
               </div>
               <button id="btn-start-game" class="btn btn-success w-full mt-4" data-i18n="start_game">start_game</button>
@@ -178,9 +179,9 @@
                         <div class="color-btn" style="background-color: #fca5a5; width: 1.5rem; height: 1.5rem;" data-color="#fca5a5"></div>
                         <div class="color-btn" style="background-color: #fef08a; width: 1.5rem; height: 1.5rem;" data-color="#fef08a"></div>
                         <div class="color-btn" style="background-color: #bbf7d0; width: 1.5rem; height: 1.5rem;" data-color="#bbf7d0"></div>
-                        <div class="color-btn" style="background-color: #ffffff; width: 1.5rem; height: 1.5rem; border: 2px solid #000000 !important;" data-color="#ffffff"></div>
+                        <div class="color-btn" style="background-color: #ffffff; width: 1.5rem; height: 1.5rem;" data-color="#ffffff"></div>
                         <!-- Custom color picker button with Conic Gradient -->
-                        <div class="color-btn" id="btn-custom-color" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); width: 1.5rem; height: 1.5rem; border: 2px solid #000000 !important; position: relative;" data-color="#a855f7" data-i18n-title="custom_color">
+                        <div class="color-btn" id="btn-custom-color" style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); width: 1.5rem; height: 1.5rem; position: relative;" data-color="#a855f7" data-i18n-title="custom_color">
                           <input type="color" id="input-custom-color" style="opacity: 0; position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; padding: 0; border: none;">
                         </div>
                       </div>
