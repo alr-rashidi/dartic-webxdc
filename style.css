@@ -698,6 +698,11 @@ button:disabled,
   transform: scale(0.9) !important;
 }
 
+.color-btn.selected {
+  border: 3px solid #3b82f6 !important;
+  box-shadow: 2px 2px 0px 0px #000000 !important;
+}
+
 .range-slider {
   height: 0.5rem;
   background-color: var(--tool-btn-hover-bg) !important;
