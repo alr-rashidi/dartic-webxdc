@@ -33,6 +33,7 @@ const btnStartGame = document.getElementById('btn-start-game');
 const settingMode = document.getElementById('setting-mode');
 const settingRounds = document.getElementById('setting-rounds');
 const settingTime = document.getElementById('setting-time');
+const settingSubjectTime = document.getElementById('setting-subject-time');
 
 // Game
 const phasePrompt = document.getElementById('phase-prompt');
@@ -82,7 +83,8 @@ let state = {
     settings: {
         mode: 'write_draw',
         rounds: 0,
-        time: 60
+        time: 60,
+        subjectTime: 20
     },
     players: [], // { addr, name, ready }
     blacklist: [],
@@ -95,7 +97,10 @@ let state = {
     submissions: {}, // round -> addr -> data (string for prompt, array of strings for svg elements)
     
     // Results
-    resultsRevealed: false
+    resultsRevealed: false,
+    // Whether the "game ended because players were idle" notice was already
+    // shown for the current game (only reset when a new game starts).
+    inactiveEndAlerted: false
 };
 
 // Local variables
@@ -194,13 +199,29 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+// Number inputs are plain text inputs so the displayed digits can follow the
+// app language (the browser renders <input type="number"> digits in the device
+// locale, which the language switch can't change).
+const FA_DIGITS = '۰۱۲۳۴۵۶۷۸۹';
+
+function toDisplayDigits(str) {
+    const s = String(str);
+    if (currentLang !== 'fa') return s;
+    return s.replace(/[0-9]/g, d => FA_DIGITS[Number(d)]);
+}
+
+function toLatinDigits(str) {
+    return String(str).replace(/[۰-۹]/g, d => String(FA_DIGITS.indexOf(d)));
+}
+
 function sanitizeSettings(s) {
     const validModes = ['write_draw', 'draw_write', 'only_draw', 'only_write', 'write_start_end', 'write_start', 'write_end'];
     const mode = (s && s.mode && validModes.includes(s.mode)) ? s.mode : 'write_draw';
     return {
         mode,
         rounds: Math.max(0, Math.min(20, parseInt(s && s.rounds) || 0)),
-        time: Math.max(5, Math.min(600, parseInt(s && s.time) || 60))
+        time: Math.max(5, Math.min(600, parseInt(s && s.time) || 60)),
+        subjectTime: Math.max(5, Math.min(600, parseInt(s && s.subjectTime) || 20))
     };
 }
 
@@ -251,6 +272,14 @@ function init() {
     settingMode.addEventListener('change', sendSettings);
     settingRounds.addEventListener('change', sendSettings);
     settingTime.addEventListener('change', sendSettings);
+    settingSubjectTime.addEventListener('change', sendSettings);
+    // Numeric settings are text inputs: keep them digits-only while typing
+    // (both Latin and Persian digits are accepted, matching the active language).
+    [settingRounds, settingTime, settingSubjectTime].forEach(input => {
+        input.addEventListener('input', () => {
+            input.value = input.value.replace(/[^0-9۰-۹]/g, '');
+        });
+    });
     btnStartGame.addEventListener('click', handleStartGame);
     
     btnSubmitPrompt.addEventListener('click', submitPrompt);
@@ -367,9 +396,16 @@ function init() {
         });
     }
     
-    // Language switch
+    // Language switch: build the options from the translations object in i18n.js
     const selectLang = document.getElementById('select-lang');
     if (selectLang) {
+        selectLang.innerHTML = '';
+        Object.keys(translations).forEach(lang => {
+            const opt = document.createElement('option');
+            opt.value = lang;
+            opt.textContent = lang.toUpperCase();
+            selectLang.appendChild(opt);
+        });
         selectLang.addEventListener('change', (e) => {
             currentLang = e.target.value;
             applyLanguage();
@@ -480,9 +516,7 @@ function processAction(action) {
         case 'READY':
             const pReady = state.players.find(p => p.addr === action.addr);
             if (pReady) pReady.ready = action.ready;
-            break;
-            
-        case 'LEAVE':
+            break;                        case 'LEAVE':
             state.players = state.players.filter(p => p.addr !== action.addr);
             // If they were part of the game and game is actively in progress:
             if (state.screen === 'playing' && state.playingAddrs && state.playingAddrs.includes(action.addr)) {
@@ -493,7 +527,7 @@ function processAction(action) {
                 const activePlayers = state.playingAddrs.filter(addr => !state.inactiveAddrs.includes(addr) && state.players.some(p => p.addr === addr));
                 if (activePlayers.length < 2) {
                     if (state.currentRound <= 1) {
-                        alert(getTranslation('alert_too_few_active'));
+                        if (!isRestoring) alert(getTranslation('alert_too_few_active'));
                         if (myAddr === getActingHostAddr()) {
                             sendAction('BACK_LOBBY');
                         }
@@ -505,9 +539,7 @@ function processAction(action) {
                 }
             }
             recalculateHost();
-            break;
-            
-        case 'KICK':
+            break;                        case 'KICK':
             if (action.addr === state.hostAddr) {
                 state.players = state.players.filter(p => p.addr !== action.targetAddr);
                 if (action.targetAddr === myAddr) {
@@ -521,7 +553,7 @@ function processAction(action) {
                     const activePlayers = state.playingAddrs.filter(addr => !state.inactiveAddrs.includes(addr) && state.players.some(p => p.addr === addr));
                     if (activePlayers.length < 2) {
                         if (state.currentRound <= 1) {
-                            alert(getTranslation('alert_too_few_active'));
+                            if (!isRestoring) alert(getTranslation('alert_too_few_active'));
                             if (myAddr === getActingHostAddr()) {
                                 sendAction('BACK_LOBBY');
                             }
@@ -555,6 +587,7 @@ function processAction(action) {
                 state.submissions = {};
                 state.inactiveAddrs = [];
                 state.resultsRevealed = false;
+                state.inactiveEndAlerted = false;
                 isTempSpectator = false;
                 isSubmitted = false;
                 startRoundUI();
@@ -587,7 +620,13 @@ function processAction(action) {
             
         case 'SHOW_RESULTS':
             if (action.addr === state.hostAddr || action.addr === getActingHostAddr()) {
-                if (action.endedInactive) {
+                // Several clients may announce the end of the same game (e.g.
+                // everyone marks the idle players inactive at once); only apply
+                // it once so the reveal isn't restarted and the notice isn't
+                // repeated.
+                if (state.resultsRevealed) break;
+                if (action.endedInactive && !isRestoring && !state.inactiveEndAlerted) {
+                    state.inactiveEndAlerted = true;
                     alert(getTranslation('game_ended_inactive'));
                 }
                 // The game is over: nobody stays "ready" for a new one, so the
@@ -665,14 +704,18 @@ function handleLeave() {
     updateUI();
 }
 
+function readSettingsFromInputs() {
+    return sanitizeSettings({
+        mode: settingMode.value,
+        rounds: toLatinDigits(settingRounds.value),
+        time: toLatinDigits(settingTime.value),
+        subjectTime: toLatinDigits(settingSubjectTime.value)
+    });
+}
+
 function sendSettings() {
     if (!isHost) return;
-    const settings = sanitizeSettings({
-        mode: settingMode.value,
-        rounds: settingRounds.value,
-        time: settingTime.value
-    });
-    sendAction('SETTINGS', { settings });
+    sendAction('SETTINGS', { settings: readSettingsFromInputs() });
 }
 
 function handleStartGame() {
@@ -686,6 +729,8 @@ function handleStartGame() {
         alert(getTranslation('alert_not_ready'));
         return;
     }
+    // Apply the latest input values even if the change event hasn't broadcast yet
+    state.settings = readSettingsFromInputs();
     sendAction('START', { startTime: Date.now() });
 }
 
@@ -751,10 +796,11 @@ function updateLobbyUI() {
     // Always show the settings block
     hostControls.classList.remove('hidden');
     
-    // Update setting values
+    // Update setting values (digits are displayed in the active language)
     settingMode.value = state.settings.mode;
-    settingRounds.value = state.settings.rounds;
-    settingTime.value = state.settings.time;
+    settingRounds.value = toDisplayDigits(state.settings.rounds);
+    settingTime.value = toDisplayDigits(state.settings.time);
+    settingSubjectTime.value = toDisplayDigits(state.settings.subjectTime);
     
     const settingsTitle = document.getElementById('host-settings-title');
     
@@ -763,6 +809,7 @@ function updateLobbyUI() {
         settingMode.disabled = false;
         settingRounds.disabled = false;
         settingTime.disabled = false;
+        settingSubjectTime.disabled = false;
         
         // Show start game button
         btnStartGame.classList.remove('hidden');
@@ -779,6 +826,7 @@ function updateLobbyUI() {
         settingMode.disabled = true;
         settingRounds.disabled = true;
         settingTime.disabled = true;
+        settingSubjectTime.disabled = true;
         
         // Hide start game button, show player controls (Ready / Cancel Ready)
         btnStartGame.classList.add('hidden');
@@ -978,7 +1026,7 @@ function updateGameUI() {
         const subs = state.submissions[state.currentRound] || {};
         const activePlayingAddrs = state.playingAddrs.filter(addr => !state.inactiveAddrs || !state.inactiveAddrs.includes(addr));
         const elapsed = (Date.now() - state.roundStartTime) / 1000;
-        const timeOut = elapsed >= state.settings.time + 5; // 5s grace period
+        const timeOut = elapsed >= getRoundTimeLimit() + 5; // 5s grace period
         
         if (timeOut) {
             activePlayingAddrs.forEach(addr => {
@@ -995,6 +1043,17 @@ function updateGameUI() {
     }
 }
 
+// The time budget for the current round: subject-writing steps (a single-line
+// subject written in the input) use the separate subject time, everything else
+// (drawing, and consecutive prompts written in the textarea) uses the round time.
+function getRoundTimeLimit() {
+    const task = determineTaskForRound(myAddr, state.currentRound);
+    if (task && task.type === 'prompt' && !isConsecutivePromptRound(state.currentRound)) {
+        return state.settings.subjectTime;
+    }
+    return state.settings.time;
+}
+
 function manageTimer() {
     if (timerInterval) clearInterval(timerInterval);
     
@@ -1005,7 +1064,7 @@ function manageTimer() {
         }
         
         const elapsed = Math.floor((Date.now() - state.roundStartTime) / 1000);
-        let remaining = state.settings.time - elapsed;
+        let remaining = getRoundTimeLimit() - elapsed;
         if (remaining < 0) remaining = 0;
         
         gameTimer.innerText = remaining;
@@ -1079,7 +1138,7 @@ function checkAndAdvanceRoundHost() {
     const activePlayingAddrs = state.playingAddrs ? state.playingAddrs.filter(addr => !state.inactiveAddrs || !state.inactiveAddrs.includes(addr)) : [];
     if (activePlayingAddrs.length < 2) {
         if (state.currentRound <= 1) {
-            alert(getTranslation('alert_too_few_active'));
+            if (!isRestoring) alert(getTranslation('alert_too_few_active'));
             sendAction('BACK_LOBBY');
         } else {
             sendAction('SHOW_RESULTS', { endedInactive: true });
@@ -1710,7 +1769,7 @@ function checkPlayerSessionStatus() {
         // were never part of the game are sent to the lobby.
         const wasInGame = state.playingAddrs && state.playingAddrs.includes(myAddr);
         if (!wasInGame) {
-            alert(getTranslation('prev_finished'));
+            if (!isRestoring) alert(getTranslation('prev_finished'));
             isTempSpectator = false;
             // Go to lobby
             state.screen = 'lobby';

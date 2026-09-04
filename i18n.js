@@ -1,6 +1,6 @@
 // All UI strings for the app, keyed by language code.
-// To add a language: copy the `en` block, translate the strings, and add a
-// matching <option> to the language selector in index.html.
+// To add a language: copy the `en` block and translate the strings. The
+// language selector options are generated automatically from these keys.
 export const translations = {
     fa: {
         title: "تلفن بازی",
@@ -20,6 +20,7 @@ export const translations = {
         rounds_label: "تعداد مراحل:",
         rounds_hint: "(0 = خودکار)",
         time_label: "زمان هر مرحله (ثانیه):",
+        subject_time_label: "زمان نوشتن موضوع (ثانیه):",
         start_game: "شروع بازی",
         ready_btn: "آماده‌ام",
         not_ready_btn: "لغو آمادگی",
@@ -91,6 +92,7 @@ export const translations = {
         rounds_label: "Rounds:",
         rounds_hint: "(0 = Auto)",
         time_label: "Round Time (sec):",
+        subject_time_label: "Subject Writing Time (sec):",
         start_game: "Start Game",
         ready_btn: "I'm Ready",
         not_ready_btn: "Cancel Ready",
